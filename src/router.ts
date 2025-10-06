@@ -59,11 +59,11 @@ function proceed(
 				mediaGroup?: InputMedia[];
 		  }
 		| string
-) {
+): RouteOnEnterResult {
 	return { proceed: arg };
 }
 
-function abort(msg?: string) {
+function abort(msg?: string): RouteOnEnterResult {
 	return { abort: msg ?? null };
 }
 
