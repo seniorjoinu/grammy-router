@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import { type Context, Keyboard, type SessionFlavor } from "grammy";
 import type {
 	InputMediaAudio,
@@ -7,7 +7,7 @@ import type {
 	InputMediaVideo,
 	ParseMode,
 } from "grammy/types";
-import { Router } from "@grammyjs/router";
+import { Router as GrammyRouter } from "@grammyjs/router";
 import {
 	unreachable,
 	type MaybePromise,
@@ -77,7 +77,7 @@ export type Route<ARG extends z.ZodType, C extends SessionFlavor<unknown>> = {
 	_match: (ctx: RouteFlavor<ARG, C>) => MaybePromise<void>;
 };
 
-export function routeFactory<
+function routeFactory<
 	S extends unknown,
 	CTX extends Context & SessionFlavor<S>
 >(): <ARG extends z.ZodType>(
@@ -245,21 +245,42 @@ export function routeFactory<
 	};
 }
 
-export function createRouter<
-	C extends RouteFlavor<z.ZodType, Context & SessionFlavor<unknown>>,
-	R extends Route<z.ZodType, C>[]
->(routes: R): Router<C> {
-	const router = new Router<C>((ctx) => {
-		const path = ctx.session.route?.path;
+export class Router<
+	S extends unknown,
+	C extends RouteFlavor<z.ZodType, Context & SessionFlavor<S>>
+> extends GrammyRouter<C> {
+	private factory = routeFactory<S, C>();
 
-		if (path === undefined) return DEFAULT_ROUTE;
+	static async create<
+		S extends unknown,
+		C extends RouteFlavor<z.ZodType, Context & SessionFlavor<S>>
+	>(
+		defaultRouteBuilder: RouteBuilder<z.ZodUndefined, C>
+	): Promise<Router<S, C>> {
+		const r = new Router<S, C>();
+		await r.on(DEFAULT_ROUTE, z.undefined(), defaultRouteBuilder);
 
-		return path;
-	});
-
-	for (const route of routes) {
-		router.route(route._path, (ctx) => route._match(ctx as any));
+		return r;
 	}
 
-	return router;
+	public async on<ARG extends z.ZodType>(
+		path: string,
+		arg: ARG,
+		builder: RouteBuilder<ARG, C>
+	): Promise<Route<ARG, C>> {
+		const route = await this.factory(path, arg, builder);
+		this.route(route._path, (ctx) => route._match(ctx as any));
+
+		return route;
+	}
+
+	private constructor() {
+		super((ctx) => {
+			const path = ctx.session.route?.path;
+
+			if (path === undefined) return DEFAULT_ROUTE;
+
+			return path;
+		});
+	}
 }

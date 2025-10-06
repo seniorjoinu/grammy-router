@@ -1,39 +1,46 @@
 # How to
 
 ```typescript
-const route = routeFactory<UserSession, MyContext>();
+import { type RouteFlavor, Router, z } from "@joinu/grammy-router";
+import { Bot, type Context, session, type SessionFlavor } from "grammy";
 
-// obligatory
-const defaultRoute = await route(DEFAULT_ROUTE, z.undefined(), () => ({
-	text: () => "You are not authorized to use this bot.",
+type UserSession = {};
+type MyContext = RouteFlavor<z.ZodType, SessionFlavor<UserSession> & Context>;
+
+const router = await Router.create<UserSession, MyContext>(() => ({
+	text: () => "Default route",
 }));
 
-const main = route("main", z.object({ testProp: z.string() }), () => ({
-	text: async (ctx) =>
-		"Main route title, press button 2 to go to another route",
-	keys: async ({ text, row }, ctx) => {
-		text("Button 1", async (ctx) =>
-			doSomething(ctx.session.route.props.testProp)
-		);
-		row();
-		text("Button 2", (ctx) => second.navigate(ctx, undefined));
-	},
-	other: async (ctx) => {
-		processUnmatchedInput();
-	},
-	guard: async (ctx) => {
-		throwToPreventNavigation();
+const main = await router.on(
+	"main",
+	z.object({ testProp: z.string() }),
+	() => ({
+		text: async (ctx) =>
+			"Main route title, press button 2 to go to another route",
+		keys: async ({ text, row }, ctx) => {
+			text("Do Something", async (ctx) =>
+				doSomething(ctx.session.route.props.testProp)
+			);
+			row();
+			text("Go Next", (ctx) => second.navigate(ctx, undefined));
+		},
+		other: async (ctx) => {
+			processUnmatchedInput();
+		},
+		guard: async (ctx) => {
+			throwToPreventNavigation();
+		},
+	})
+);
+
+const second = await router.on("second", z.undefined(), () => ({
+	text: () => "Second route",
+	keys: ({ text }) => {
+		text("Go Back", (ctx) => main.navigate(ctx, { testProp: "test" }));
 	},
 }));
 
-const second = route("main", z.undefined(), () => ({
-	text: async (ctx) => "Second route",
-}));
-
-const routes = [defaultRoute, main, second];
-const router = createRouter(routes as any);
-
-const BOT = new Bot<MyContext>();
+const BOT = new Bot<MyContext>("API_KEY");
 
 BOT.use(
 	session({
@@ -44,6 +51,5 @@ BOT.use(
 );
 
 BOT.use(router as any);
-
 // done
 ```
