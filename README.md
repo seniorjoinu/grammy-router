@@ -15,8 +15,8 @@ const main = await router.on(
 	"main",
 	z.object({ testProp: z.string() }),
 	() => ({
-		text: async (ctx) =>
-			"Main route title, press button 2 to go to another route",
+		onEnter: async (ctx, { proceed }) =>
+			proceed("Main route title, press button 2 to go to another route"),
 		keys: async ({ text, row }, ctx) => {
 			text("Do Something", async (ctx) =>
 				doSomething(ctx.session.route.props.testProp)
@@ -27,14 +27,11 @@ const main = await router.on(
 		other: async (ctx) => {
 			processUnmatchedInput();
 		},
-		guard: async (ctx) => {
-			throwToPreventNavigation();
-		},
 	})
 );
 
 const second = await router.on("second", z.undefined(), () => ({
-	text: () => "Second route",
+	onEnter: (ctx, { abort }) => abort("Second route"),
 	keys: ({ text }) => {
 		text("Go Back", (ctx) => main.navigate(ctx, { testProp: "test" }));
 	},

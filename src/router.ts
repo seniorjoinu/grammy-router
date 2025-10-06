@@ -37,13 +37,35 @@ export type RouteBuilder<
 	C extends SessionFlavor<unknown>
 > = () => MaybePromise<RouteBuilderResult<ARG, C>>;
 
-export type RouteText =
-	| string
+export type RouteOnEnterResult =
 	| {
-			text: string;
-			markup: "plain" | "md" | "md2" | "html";
-			mediaGroup?: InputMedia[];
+			proceed:
+				| {
+						text: string;
+						markup: "plain" | "md" | "md2" | "html";
+						mediaGroup?: InputMedia[];
+				  }
+				| string;
+	  }
+	| {
+			abort: string | null;
 	  };
+
+function proceed(
+	arg:
+		| {
+				text: string;
+				markup: "plain" | "md" | "md2" | "html";
+				mediaGroup?: InputMedia[];
+		  }
+		| string
+) {
+	return { proceed: arg };
+}
+
+function abort(msg?: string) {
+	return { abort: msg ?? null };
+}
 
 export type RouteKeysTextHandler<
 	ARG extends z.ZodType,
@@ -62,8 +84,10 @@ export type RouteBuilderResult<
 	ARG extends z.ZodType,
 	C extends SessionFlavor<unknown>
 > = {
-	guard?: (ctx: RouteFlavor<ARG, C>) => MaybePromise<void>;
-	text: (ctx: RouteFlavor<ARG, C>) => MaybePromise<RouteText>;
+	onEnter: (
+		ctx: RouteFlavor<ARG, C>,
+		more: { proceed: typeof proceed; abort: typeof abort }
+	) => MaybePromise<RouteOnEnterResult>;
 	keys?: (
 		keys: RouteKeys<ARG, C>,
 		ctx: RouteFlavor<ARG, C>
@@ -90,7 +114,7 @@ function routeFactory<
 		arg: ARG,
 		builder: RouteBuilder<ARG, CTX>
 	): Promise<Route<ARG, CTX>> {
-		const { guard, text, keys, other } = await builder();
+		const { onEnter, keys, other } = await builder();
 
 		const textKeyHandlers: [string, RouteKeysTextHandler<ARG, CTX>][] = [];
 
@@ -148,47 +172,33 @@ function routeFactory<
 				);
 			}
 
-			if (guard) {
-				try {
-					await guard(ctx);
-				} catch (e) {
-					if (oldPath) {
-						ctx.session.route = {
-							props: oldProps,
-							path: oldPath,
-						};
-					}
+			const r = await onEnter(ctx, { proceed, abort });
 
-					if (e instanceof Error) {
-						await ctx.reply(`[Error]: ${e.message}`);
-						return;
-					} else {
-						throw new Error(
-							`Guard for path ${
-								ctx.session.route.path
-							} panicked (props = ${JSON.stringify(
-								ctx.session.route.props,
-								undefined,
-								2
-							)})`,
-							{ cause: e }
-						);
-					}
+			if ("abort" in r) {
+				if (oldPath) {
+					ctx.session.route = {
+						props: oldProps,
+						path: oldPath,
+					};
 				}
+
+				if (typeof r.abort === "string") {
+					await ctx.reply(r.abort);
+				}
+
+				return;
 			}
 
 			let content: string = "",
 				parseMode: ParseMode | undefined = undefined,
 				mediaGroup: InputMedia[] | undefined = undefined;
 
-			const t = await text(ctx);
-
-			if (typeof t === "string") {
-				content = t;
+			if (typeof r.proceed === "string") {
+				content = r.proceed;
 				parseMode = undefined;
 			} else {
-				content = t.text;
-				switch (t.markup) {
+				content = r.proceed.text;
+				switch (r.proceed.markup) {
 					case "plain": {
 						parseMode = undefined;
 						break;
@@ -206,7 +216,7 @@ function routeFactory<
 						break;
 					}
 				}
-				mediaGroup = t.mediaGroup;
+				mediaGroup = r.proceed.mediaGroup;
 			}
 
 			let keyboard: Keyboard | undefined = undefined;
