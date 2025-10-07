@@ -1,8 +1,11 @@
 {
 	"name": "@joinu/grammy-router",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"license": "MIT",
 	"exports": "./mod.ts",
+	"tasks": {
+		"dev": "deno run --allow-all ./main.ts"
+	},
 	"imports": {
 		"@grammyjs/router": "npm:@grammyjs/router@^2.0.0",
 		"@std/assert": "jsr:@std/assert@1",
