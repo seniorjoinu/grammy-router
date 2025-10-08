@@ -1,45 +1,51 @@
 import { z } from "zod";
-import { type Context, Keyboard, type SessionFlavor } from "grammy";
+import { type Context, Keyboard } from "grammy";
 import type { ParseMode } from "grammy/types";
 import { Router as GrammyRouter } from "@grammyjs/router";
-import { type MaybePromise, DEFAULT_ROUTE } from "./utils.ts";
-import {
-	proceed,
-	type InputMedia,
-	type Route,
-	type RouteBuilder,
-	type RouteBuilderResult,
-	type RouteFlavor,
-	type RouteKeysTextHandler,
+import { type MaybePromise, DEFAULT_ROUTE, panic } from "./utils.ts";
+import type {
+	CtxAndProps,
+	InputMedia,
+	Route,
+	RouteBuilder,
+	RouteBuilderResult,
+	RouteKeysTextHandler,
 } from "./types.ts";
+import type { IRouterStorage } from "./storage.ts";
 
-function routeFactory<
-	S extends unknown,
-	CTX extends Context & SessionFlavor<S>
->(): <ARG extends z.ZodType>(
+function routeFactory<C extends Context>(): <ARG extends z.ZodType>(
 	path: string,
 	arg: ARG,
-	builder: RouteBuilder<ARG, CTX>
-) => Promise<Route<ARG, CTX>> {
+	builder: RouteBuilder<ARG, C>,
+	storage: IRouterStorage
+) => Promise<Route<ARG, C>> {
 	return async function route<ARG extends z.ZodType>(
 		path: string,
 		arg: ARG,
-		builder: RouteBuilder<ARG, CTX>
-	): Promise<Route<ARG, CTX>> {
+		builder: RouteBuilder<ARG, C>,
+		storage: IRouterStorage
+	): Promise<Route<ARG, C>> {
 		const { onEnter, keys, other } = await builder();
 
 		const textKeyHandlers: Partial<
-			Record<string, RouteKeysTextHandler<ARG, CTX>>
+			Record<string, RouteKeysTextHandler<ARG, C>>
 		> = {};
 
-		const _match: (ctx: RouteFlavor<ARG, CTX>) => MaybePromise<void> = async (
-			ctx
-		) => {
+		const _match: (ctx: C) => MaybePromise<void> = async (ctx) => {
+			const userId = ctx.from?.id.toString();
+			if (!userId) panic("Invalid use of the router - no user id provided");
+
+			const state = await storage.get<ARG>(userId);
+			if (state.path != path)
+				panic("Expected path is different from the actual");
+
+			const ctxAndProps = { ctx, route: state.path, props: state.props };
+
 			const keyboard = new Keyboard();
-			await populateHandles(ctx, keys, textKeyHandlers, keyboard);
+			await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
 
 			const options = Object.keys(textKeyHandlers);
-			const { path: pathBefore } = ctx.session.route ?? { path: undefined };
+			const pathBefore = state.path;
 
 			if (ctx.message?.text && options.includes(ctx.message.text)) {
 				const text = ctx.message.text;
@@ -48,72 +54,53 @@ function routeFactory<
 				const handler = textKeyHandlers[text];
 				if (!handler) return;
 
-				await handler(ctx);
+				await handler(ctxAndProps);
 			} else if (other) {
-				await other({ ctx });
+				await other(ctxAndProps);
 			}
 
-			const { path: pathAfter } = ctx.session.route ?? { path: undefined };
+			const newState = await storage.get<ARG>(userId);
+			const pathAfter = newState.path;
+			const newCtxAndProps = {
+				ctx,
+				route: newState.path,
+				props: newState.props,
+			};
 
 			if (pathBefore === pathAfter) {
-				await enterRoute(ctx, onEnter, keyboard);
+				await enterRoute(newCtxAndProps, onEnter, keyboard);
 			}
 		};
 
-		const navigate = async (
-			ctx: RouteFlavor<ARG, CTX>,
-			props: z.infer<ARG>
-		): Promise<void> => {
-			const oldProps = ctx.session.route?.props;
-			const oldPath = ctx.session.route?.path;
+		const navigate = async (ctx: C, props: z.infer<ARG>): Promise<void> => {
+			const userId = ctx.from?.id.toString();
+			if (!userId) panic("Invalid use of the router - no user id provided");
 
-			ctx.session.route = {
-				props,
-				path,
-			};
+			await arg.parseAsync(props);
 
-			try {
-				await arg.parseAsync(ctx.session.route.props);
-			} catch (e) {
-				if (oldPath) {
-					ctx.session.route = {
-						props: oldProps,
-						path: oldPath,
-					};
-				}
-
-				throw new Error(
-					`Invalid props for path ${ctx.session.route.path}: ${JSON.stringify(
-						ctx.session.route.props,
-						undefined,
-						2
-					)}`,
-					{ cause: e }
-				);
-			}
+			const ctxAndProps = { ctx, route: path, props };
+			await storage.set(userId, {
+				path: ctxAndProps.route,
+				props: ctxAndProps.props,
+			});
 
 			const keyboard = new Keyboard();
-			await populateHandles(ctx, keys, textKeyHandlers, keyboard);
-			await enterRoute(ctx, onEnter, keyboard);
+			await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
+			await enterRoute(ctxAndProps, onEnter, keyboard);
 		};
 
 		return { navigate, _match, _path: path };
 	};
 }
 
-export class Router<
-	S extends unknown,
-	C extends RouteFlavor<z.ZodType, Context & SessionFlavor<S>>
-> extends GrammyRouter<C> {
-	private factory = routeFactory<S, C>();
+export class Router<C extends Context> extends GrammyRouter<C> {
+	private factory = routeFactory<C>();
 
-	static async create<
-		S extends unknown,
-		C extends RouteFlavor<z.ZodType, Context & SessionFlavor<S>>
-	>(
+	static async create<C extends Context>(
+		storage: IRouterStorage,
 		defaultRouteBuilder: RouteBuilder<z.ZodUndefined, C>
-	): Promise<Router<S, C>> {
-		const r = new Router<S, C>();
+	): Promise<Router<C>> {
+		const r = new Router<C>(storage);
 		await r.on(DEFAULT_ROUTE, z.undefined(), defaultRouteBuilder);
 
 		return r;
@@ -123,38 +110,34 @@ export class Router<
 		path: string,
 		arg: ARG,
 		builder: RouteBuilder<ARG, C>
-	): Promise<Route<ARG, C>> {
-		const route = await this.factory(path, arg, builder);
+	): Promise<(ctx: C, props: z.infer<ARG>) => MaybePromise<void>> {
+		const route = await this.factory(path, arg, builder, this.storage);
 		this.route(route._path, async (ctx) => await route._match(ctx as any));
 
-		return route;
+		return route.navigate;
 	}
 
-	private constructor() {
-		super((ctx) => {
-			const path = ctx.session.route?.path;
+	private constructor(private storage: IRouterStorage) {
+		super(async (ctx) => {
+			const userId = ctx.from?.id?.toString();
+			if (!userId) panic("Invalid usage of the router - no user id provided");
 
-			if (path === undefined) return DEFAULT_ROUTE;
-
+			const { path } = await this.storage.get(userId);
 			return path;
 		});
 	}
 }
 
-async function enterRoute<
-	S extends unknown,
-	CTX extends Context & SessionFlavor<S>,
-	ARG extends z.ZodType
->(
-	ctx: RouteFlavor<ARG, CTX>,
-	onEnter: RouteBuilderResult<ARG, CTX>["onEnter"],
+async function enterRoute<C extends Context, ARG extends z.ZodType>(
+	ctxAndProps: CtxAndProps<ARG, C>,
+	onEnter: RouteBuilderResult<ARG, C>["onEnter"],
 	keyboard: Keyboard
 ) {
 	let content: string = "",
 		parseMode: ParseMode | undefined = undefined,
 		mediaGroup: InputMedia[] | undefined = undefined;
 
-	const r = await onEnter({ ctx, proceed });
+	const r = await onEnter(ctxAndProps);
 
 	if (!r) return;
 
@@ -182,24 +165,20 @@ async function enterRoute<
 		mediaGroup = r.mediaGroup;
 	}
 
-	await ctx.reply(content, {
+	await ctxAndProps.ctx.reply(content, {
 		parse_mode: parseMode,
 		reply_markup: keyboard,
 	});
 
 	if (mediaGroup) {
-		await ctx.replyWithMediaGroup(mediaGroup);
+		await ctxAndProps.ctx.replyWithMediaGroup(mediaGroup);
 	}
 }
 
-async function populateHandles<
-	S extends unknown,
-	ARG extends z.ZodType,
-	CTX extends Context & SessionFlavor<S>
->(
-	ctx: RouteFlavor<ARG, CTX>,
-	keys: RouteBuilderResult<ARG, CTX>["keys"],
-	handlers: Partial<Record<string, RouteKeysTextHandler<ARG, CTX>>>,
+async function populateHandles<ARG extends z.ZodType, C extends Context>(
+	ctxAndProps: CtxAndProps<ARG, C>,
+	keys: RouteBuilderResult<ARG, C>["keys"],
+	handlers: Partial<Record<string, RouteKeysTextHandler<ARG, C>>>,
 	keyboard: Keyboard | undefined
 ): Promise<void> {
 	if (!keys) return;
@@ -210,10 +189,10 @@ async function populateHandles<
 		keyboard.oneTime(true);
 	}
 
-	const text: (
-		text: string,
-		handler: RouteKeysTextHandler<ARG, CTX>
-	) => void = (text, handler) => {
+	const text: (text: string, handler: RouteKeysTextHandler<ARG, C>) => void = (
+		text,
+		handler
+	) => {
 		if (keyboard) {
 			keyboard.text(text);
 		}
@@ -227,5 +206,5 @@ async function populateHandles<
 		}
 	};
 
-	await keys({ text, row, ctx });
+	await keys({ text, row, ...ctxAndProps });
 }
