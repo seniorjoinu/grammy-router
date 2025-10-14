@@ -39,13 +39,15 @@ function routeFactory<C extends Context>(): <ARG extends z.ZodType>(
 			if (state.path != path)
 				panic("Expected path is different from the actual");
 
-			const ctxAndProps = { ctx, route: state.path, props: state.props };
+			const ctxAndProps = {
+				ctx,
+				route: state.path,
+				props: structuredClone(state.props),
+			};
 
 			await populateHandles(ctxAndProps, keys, textKeyHandlers, undefined);
 
-			const options = Object.keys(textKeyHandlers);
-
-			if (ctx.message?.text && options.includes(ctx.message.text)) {
+			if (ctx.message?.text && ctx.message.text in textKeyHandlers) {
 				const text = ctx.message.text;
 				if (!text) return;
 
@@ -58,35 +60,41 @@ function routeFactory<C extends Context>(): <ARG extends z.ZodType>(
 			}
 
 			const newState = await storage.get<ARG>(userId);
-			const newCtxAndProps = {
-				ctx,
-				route: newState.path,
-				props: newState.props,
-			};
 
 			if (JSON.stringify(state) === JSON.stringify(newState)) {
 				const keyboard = new Keyboard();
+				const newCtxAndProps = {
+					ctx,
+					route: newState.path,
+					props: structuredClone(newState.props),
+				};
 
 				await populateHandles(newCtxAndProps, keys, textKeyHandlers, keyboard);
 				await enterRoute(newCtxAndProps, onEnter, keyboard);
 			}
 		};
 
-		const navigate = async (ctx: C, props: z.infer<ARG>): Promise<void> => {
+		const navigate = async (
+			ctx: C,
+			props: z.infer<ARG>,
+			enter: boolean = true
+		): Promise<void> => {
 			const userId = ctx.from?.id.toString();
 			if (!userId) panic("Invalid use of the router - no user id provided");
 
 			await arg.parseAsync(props);
 
-			const ctxAndProps = { ctx, route: path, props };
+			const ctxAndProps = { ctx, route: path, props: structuredClone(props) };
 			await storage.set(userId, {
 				path: ctxAndProps.route,
 				props: ctxAndProps.props,
 			});
 
-			const keyboard = new Keyboard();
-			await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
-			await enterRoute(ctxAndProps, onEnter, keyboard);
+			if (enter) {
+				const keyboard = new Keyboard();
+				await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
+				await enterRoute(ctxAndProps, onEnter, keyboard);
+			}
 		};
 
 		return { navigate, _match, _path: path };

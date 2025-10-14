@@ -59,7 +59,7 @@ export type RouteBuilderResult<ARG extends z.ZodType, C extends Context> = {
 };
 
 export type Route<ARG extends z.ZodType, C extends Context> = {
-	navigate: (ctx: C, arg: z.infer<ARG>) => MaybePromise<void>;
+	navigate: (ctx: C, arg: z.infer<ARG>, enter?: boolean) => MaybePromise<void>;
 	_match: (ctx: C) => MaybePromise<void>;
 	_path: string;
 };
