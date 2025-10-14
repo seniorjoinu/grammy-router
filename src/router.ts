@@ -41,8 +41,7 @@ function routeFactory<C extends Context>(): <ARG extends z.ZodType>(
 
 			const ctxAndProps = { ctx, route: state.path, props: state.props };
 
-			const keyboard = new Keyboard();
-			await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
+			await populateHandles(ctxAndProps, keys, textKeyHandlers, undefined);
 
 			const options = Object.keys(textKeyHandlers);
 
@@ -66,6 +65,9 @@ function routeFactory<C extends Context>(): <ARG extends z.ZodType>(
 			};
 
 			if (JSON.stringify(state) === JSON.stringify(newState)) {
+				const keyboard = new Keyboard();
+				await populateHandles(ctxAndProps, keys, textKeyHandlers, keyboard);
+
 				await enterRoute(newCtxAndProps, onEnter, keyboard);
 			}
 		};
