@@ -118,7 +118,9 @@ export class Router<C extends Context> extends GrammyRouter<C> {
 		path: string,
 		arg: ARG,
 		builder: RouteBuilder<ARG, C>
-	): Promise<(ctx: C, props: z.infer<ARG>) => MaybePromise<void>> {
+	): Promise<
+		(ctx: C, props: z.infer<ARG>, enter?: boolean) => MaybePromise<void>
+	> {
 		const route = await this.factory(path, arg, builder, this.storage);
 		this.route(route._path, async (ctx) => await route._match(ctx as any));
 
