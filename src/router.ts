@@ -130,7 +130,7 @@ export class Router<C extends Context> extends GrammyRouter<C> {
 	private constructor(private storage: IRouterStorage) {
 		super(async (ctx) => {
 			const userId = ctx.from?.id?.toString();
-			if (!userId) panic("Invalid usage of the router - no user id provided");
+			if (!userId) return DEFAULT_ROUTE;
 
 			const { path } = await this.storage.get(userId);
 			return path;
