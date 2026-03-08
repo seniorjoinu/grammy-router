@@ -1,32 +1,32 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@std/assert@1": "1.0.14",
-    "jsr:@std/internal@^1.0.10": "1.0.10",
-    "npm:@grammyjs/router@2": "2.0.0_grammy@1.38.3",
-    "npm:grammy@^1.38.3": "1.38.3",
-    "npm:zod@^4.1.11": "4.1.11"
+    "jsr:@std/assert@^1.0.19": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "npm:@grammyjs/router@2": "2.0.0_grammy@1.41.1",
+    "npm:grammy@^1.41.1": "1.41.1",
+    "npm:zod@^4.3.6": "4.3.6"
   },
   "jsr": {
-    "@std/assert@1.0.14": {
-      "integrity": "68d0d4a43b365abc927f45a9b85c639ea18a9fab96ad92281e493e4ed84abaa4",
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
       "dependencies": [
         "jsr:@std/internal"
       ]
     },
-    "@std/internal@1.0.10": {
-      "integrity": "e3be62ce42cab0e177c27698e5d9800122f67b766a0bea6ca4867886cbde8cf7"
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
     }
   },
   "npm": {
-    "@grammyjs/router@2.0.0_grammy@1.38.3": {
+    "@grammyjs/router@2.0.0_grammy@1.41.1": {
       "integrity": "sha512-xJ3HRNj3mVojLtkFmV+GvKpOWOnS0CGdAIdvpaq+j+8dic1wM1OhOukaotkKzAWZ6bb9QyzUUgVFN6xfZDO5VA==",
       "dependencies": [
         "grammy"
       ]
     },
-    "@grammyjs/types@3.22.2": {
-      "integrity": "sha512-uu7DX2ezhnBPozL3bXHmwhLvaFsh59E4QyviNH4Cij7EdVekYrs6mCzeXsa2pDk30l3uXo7DBahlZLzTPtpYZg=="
+    "@grammyjs/types@3.25.0": {
+      "integrity": "sha512-iN9i5p+8ZOu9OMxWNcguojQfz4K/PDyMPOnL7PPCON+SoA/F8OKMH3uR7CVUkYfdNe0GCz8QOzAWrnqusQYFOg=="
     },
     "abort-controller@3.0.0": {
       "integrity": "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==",
@@ -43,8 +43,8 @@
     "event-target-shim@5.0.1": {
       "integrity": "sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ=="
     },
-    "grammy@1.38.3": {
-      "integrity": "sha512-1eQwNfxrRQ0JOFqd3n1nKqyWkHvCQRCNiH8e5aYm27mIjGPobgss58XN8GORC2ejAWM2+NSdUknrMhYj87cjGg==",
+    "grammy@1.41.1": {
+      "integrity": "sha512-wcHAQ1e7svL3fJMpDchcQVcWUmywhuepOOjHUHmMmWAwUJEIyK5ea5sbSjZd+Gy1aMpZeP8VYJa+4tP+j1YptQ==",
       "dependencies": [
         "@grammyjs/types",
         "abort-controller",
@@ -74,16 +74,16 @@
         "webidl-conversions"
       ]
     },
-    "zod@4.1.11": {
-      "integrity": "sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg=="
+    "zod@4.3.6": {
+      "integrity": "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="
     }
   },
   "workspace": {
     "dependencies": [
-      "jsr:@std/assert@1",
+      "jsr:@std/assert@^1.0.19",
       "npm:@grammyjs/router@2",
-      "npm:grammy@^1.38.3",
-      "npm:zod@^4.1.11"
+      "npm:grammy@^1.41.1",
+      "npm:zod@^4.3.6"
     ]
   }
 }
